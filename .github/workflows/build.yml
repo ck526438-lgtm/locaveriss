@@ -1,0 +1,48 @@
+name: Build APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+
+      - name: Compiler les deux APK
+        run: gradle assembleChercheurDebug assembleProDebug --no-daemon --stacktrace
+
+      - name: Renommer les APK
+        run: |
+          mv app/build/outputs/apk/chercheur/debug/app-chercheur-debug.apk Locaveriss.apk
+          mv app/build/outputs/apk/pro/debug/app-pro-debug.apk Locaveriss-Pro.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Locaveriss-apk
+          path: |
+            Locaveriss.apk
+            Locaveriss-Pro.apk
+
+      - name: Publier dans Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Locavériss build ${{ github.run_number }}
+          files: |
+            Locaveriss.apk
+            Locaveriss-Pro.apk

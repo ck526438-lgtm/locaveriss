@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/white"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <ImageView
+            android:layout_width="match_parent"
+            android:layout_height="96dp"
+            android:contentDescription="Locavériss"
+            android:scaleType="fitCenter"
+            android:src="@drawable/logo_full" />
+
+        <TextView
+            android:id="@+id/title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Connexion propriétaire / agence"
+            android:textColor="@color/navy"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:id="@+id/signupFields"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <EditText
+                android:id="@+id/nomInput"
+                style="@style/Field"
+                android:hint="Nom complet ou nom de l'agence"
+                android:importantForAutofill="no"
+                android:inputType="textPersonName|textCapWords" />
+
+            <EditText
+                android:id="@+id/telInput"
+                style="@style/Field"
+                android:hint="Téléphone / WhatsApp"
+                android:importantForAutofill="no"
+                android:inputType="phone" />
+
+            <Spinner
+                android:id="@+id/compteSpinner"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_marginTop="6dp" />
+        </LinearLayout>
+
+        <EditText
+            android:id="@+id/emailInput"
+            style="@style/Field"
+            android:hint="Email"
+            android:importantForAutofill="no"
+            android:inputType="textEmailAddress" />
+
+        <EditText
+            android:id="@+id/passInput"
+            style="@style/Field"
+            android:hint="Mot de passe (6 caractères minimum)"
+            android:importantForAutofill="no"
+            android:inputType="textPassword" />
+
+        <TextView
+            android:id="@+id/errorText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textColor="@color/red"
+            android:textSize="14sp"
+            android:visibility="gone" />
+
+        <Button
+            android:id="@+id/submitBtn"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_marginTop="12dp"
+            android:text="Se connecter" />
+
+        <Button
+            android:id="@+id/switchBtn"
+            style="@style/Widget.MaterialComponents.Button.TextButton"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:text="Pas encore de compte ? Créer un compte" />
+    </LinearLayout>
+</ScrollView>
