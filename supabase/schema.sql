@@ -221,3 +221,214 @@ create policy "signalements: admin supprime" on public.signalements
 
 grant select, delete on public.signalements to authenticated;
 grant execute on function public.is_admin() to anon, authenticated;
+
+-- ---------- Profil locataire, demandes et avis ----------
+-- Profil locataire : le chercheur le remplit dans l'appli Locavériss ; le propriétaire
+-- le voit dans Locavériss Pro quand le chercheur lui envoie une demande.
+alter table public.profils
+  add column if not exists profession text not null default '',
+  add column if not exists situation text not null default '',
+  add column if not exists personnes integer not null default 1,
+  add column if not exists budget integer not null default 0,
+  add column if not exists zone text not null default '',
+  add column if not exists presentation text not null default '';
+
+-- Chaque compte doit avoir sa ligne de profil (demandes et avis s'y rattachent).
+insert into public.profils (id, nom, telephone, type_compte)
+select u.id,
+       coalesce(u.raw_user_meta_data->>'nom', ''),
+       coalesce(u.raw_user_meta_data->>'telephone', ''),
+       coalesce(u.raw_user_meta_data->>'type_compte', 'particulier')
+from auth.users u
+on conflict (id) do nothing;
+
+-- Note moyenne et nombre d'avis, recalculés automatiquement à chaque avis.
+alter table public.annonces
+  add column if not exists note_moyenne numeric(2,1) not null default 0,
+  add column if not exists nb_avis integer not null default 0;
+
+create table if not exists public.avis (
+  id uuid primary key default gen_random_uuid(),
+  annonce_id uuid not null references public.annonces (id) on delete cascade,
+  auteur uuid not null default auth.uid() references public.profils (id) on delete cascade,
+  auteur_nom text not null default '',
+  note smallint not null check (note between 1 and 5),
+  commentaire text not null default '' check (char_length(commentaire) <= 1000),
+  created_at timestamptz not null default now(),
+  unique (annonce_id, auteur)                 -- un seul avis par personne et par annonce
+);
+create index if not exists avis_annonce_idx on public.avis (annonce_id, created_at desc);
+
+create table if not exists public.demandes (
+  id uuid primary key default gen_random_uuid(),
+  annonce_id uuid not null references public.annonces (id) on delete cascade,
+  locataire uuid not null default auth.uid() references public.profils (id) on delete cascade,
+  message text not null default '' check (char_length(message) <= 1000),
+  status text not null default 'nouvelle'
+    check (status in ('nouvelle', 'acceptee', 'refusee')),
+  created_at timestamptz not null default now(),
+  unique (annonce_id, locataire)              -- une seule demande par personne et par annonce
+);
+create index if not exists demandes_annonce_idx on public.demandes (annonce_id, created_at desc);
+create index if not exists demandes_locataire_idx on public.demandes (locataire);
+
+-- Le nom affiché sur un avis vient du profil : impossible de signer à la place d'un autre.
+create or replace function public.preparer_avis()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if tg_op = 'UPDATE' then
+    new.auteur := old.auteur;
+    new.annonce_id := old.annonce_id;
+    new.created_at := now();
+  end if;
+  select nullif(trim(nom), '') into new.auteur_nom from public.profils where id = new.auteur;
+  new.auteur_nom := coalesce(new.auteur_nom, 'Utilisateur');
+  return new;
+end $$;
+
+drop trigger if exists preparer_avis on public.avis;
+create trigger preparer_avis
+  before insert or update on public.avis
+  for each row execute function public.preparer_avis();
+
+create or replace function public.maj_note_annonce()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  cible uuid;
+begin
+  if tg_op = 'DELETE' then cible := old.annonce_id; else cible := new.annonce_id; end if;
+  update public.annonces a
+     set note_moyenne = coalesce((select round(avg(v.note), 1) from public.avis v where v.annonce_id = cible), 0),
+         nb_avis = (select count(*) from public.avis v where v.annonce_id = cible)
+   where a.id = cible;
+  return null;
+end $$;
+
+drop trigger if exists maj_note_annonce on public.avis;
+create trigger maj_note_annonce
+  after insert or update or delete on public.avis
+  for each row execute function public.maj_note_annonce();
+
+-- La note d'une annonce ne change que par les avis (pg_trigger_depth() > 1) :
+-- ni le propriétaire ni personne d'autre ne peut l'écrire directement.
+create or replace function public.proteger_annonce()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if tg_op = 'INSERT' then
+    new.note_moyenne := 0;
+    new.nb_avis := 0;
+  elsif pg_trigger_depth() = 1 then
+    new.note_moyenne := old.note_moyenne;
+    new.nb_avis := old.nb_avis;
+  end if;
+  if auth.uid() is null or public.is_admin() then
+    return new;                       -- tableau de bord ou administrateur
+  end if;
+  if tg_op = 'INSERT' then
+    new.proprietaire := auth.uid();
+    new.status := 'en_attente';
+    new.motif_refus := null;
+  else
+    new.proprietaire := old.proprietaire;
+    new.motif_refus := old.motif_refus;
+    if row(new.titre, new.type, new.ville, new.quartier, new.loyer, new.caution_mois,
+           new.avance_mois, new.pieces, new.description, new.telephone, new.photos)
+       is distinct from
+       row(old.titre, old.type, old.ville, old.quartier, old.loyer, old.caution_mois,
+           old.avance_mois, old.pieces, old.description, old.telephone, old.photos) then
+      new.status := 'en_attente';
+      new.motif_refus := null;
+    else
+      new.status := old.status;
+    end if;
+  end if;
+  return new;
+end $$;
+
+alter table public.avis enable row level security;
+alter table public.demandes enable row level security;
+
+-- Avis : tout le monde les lit ; il faut un compte pour en donner un,
+-- sur une annonce vérifiée qui n'est pas la sienne.
+drop policy if exists "avis: lecture" on public.avis;
+create policy "avis: lecture" on public.avis
+  for select to anon, authenticated using (true);
+
+drop policy if exists "avis: donner le sien" on public.avis;
+create policy "avis: donner le sien" on public.avis
+  for insert to authenticated
+  with check (
+    auteur = auth.uid()
+    and exists (select 1 from public.annonces a
+                where a.id = annonce_id and a.status = 'verifiee' and a.proprietaire <> auth.uid())
+  );
+
+drop policy if exists "avis: modifier le sien" on public.avis;
+create policy "avis: modifier le sien" on public.avis
+  for update to authenticated using (auteur = auth.uid()) with check (auteur = auth.uid());
+
+drop policy if exists "avis: supprimer" on public.avis;
+create policy "avis: supprimer" on public.avis
+  for delete to authenticated using (auteur = auth.uid() or public.is_admin());
+
+-- Demandes : le chercheur envoie et voit les siennes ; le propriétaire de l'annonce
+-- les reçoit et y répond (acceptée / refusée).
+drop policy if exists "demandes: envoyer" on public.demandes;
+create policy "demandes: envoyer" on public.demandes
+  for insert to authenticated
+  with check (
+    locataire = auth.uid()
+    and exists (select 1 from public.annonces a
+                where a.id = annonce_id and a.status = 'verifiee' and a.proprietaire <> auth.uid())
+  );
+
+drop policy if exists "demandes: lecture" on public.demandes;
+create policy "demandes: lecture" on public.demandes
+  for select to authenticated
+  using (
+    locataire = auth.uid()
+    or public.is_admin()
+    or exists (select 1 from public.annonces a
+               where a.id = annonce_id and a.proprietaire = auth.uid())
+  );
+
+drop policy if exists "demandes: le propriétaire répond" on public.demandes;
+create policy "demandes: le propriétaire répond" on public.demandes
+  for update to authenticated
+  using (exists (select 1 from public.annonces a
+                 where a.id = annonce_id and a.proprietaire = auth.uid()))
+  with check (exists (select 1 from public.annonces a
+                      where a.id = annonce_id and a.proprietaire = auth.uid()));
+
+drop policy if exists "demandes: retirer la sienne" on public.demandes;
+create policy "demandes: retirer la sienne" on public.demandes
+  for delete to authenticated using (locataire = auth.uid());
+
+-- Profil : chacun modifie le sien ; un propriétaire lit celui des chercheurs
+-- qui lui ont envoyé une demande (et seulement ceux-là).
+drop policy if exists "profil: modifier le sien" on public.profils;
+create policy "profil: modifier le sien" on public.profils
+  for update to authenticated using (id = auth.uid()) with check (id = auth.uid());
+
+drop policy if exists "profil: lu par le propriétaire contacté" on public.profils;
+create policy "profil: lu par le propriétaire contacté" on public.profils
+  for select to authenticated
+  using (exists (select 1 from public.demandes d
+                 join public.annonces a on a.id = d.annonce_id
+                 where d.locataire = profils.id and a.proprietaire = auth.uid()));
+
+-- Droits colonne par colonne : on ne peut ni se déclarer « vérifié », ni choisir
+-- le statut de sa demande, ni signer un avis à la place d'un autre.
+revoke all on public.avis from anon, authenticated;
+revoke all on public.demandes from anon, authenticated;
+revoke insert, update, delete on public.profils from anon, authenticated;
+grant select on public.avis to anon, authenticated;
+grant insert (annonce_id, note, commentaire) on public.avis to authenticated;
+grant update (note, commentaire) on public.avis to authenticated;
+grant delete on public.avis to authenticated;
+grant select on public.demandes to authenticated;
+grant insert (annonce_id, message) on public.demandes to authenticated;
+grant update (status) on public.demandes to authenticated;
+grant delete on public.demandes to authenticated;
+grant update (nom, telephone, profession, situation, personnes, budget, zone, presentation)
+  on public.profils to authenticated;

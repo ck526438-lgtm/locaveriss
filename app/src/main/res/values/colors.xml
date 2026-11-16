@@ -1,14 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Marque (logo) -->
     <color name="navy">#12305F</color>
     <color name="blue">#1F5FA8</color>
     <color name="green">#22B573</color>
     <color name="green_dark">#178A56</color>
-    <color name="bg">#F4F7FB</color>
+    <!-- Interface : noir, blanc et gris doux -->
+    <color name="ink">#111318</color>
+    <color name="bg">#F4F6F9</color>
+    <color name="field">#EEF1F5</color>
+    <color name="line">#E4E8EE</color>
     <color name="white">#FFFFFF</color>
-    <color name="text">#16233A</color>
-    <color name="text_dim">#5C6B82</color>
-    <color name="orange">#D9822B</color>
+    <color name="text">#111318</color>
+    <color name="text_dim">#6B7480</color>
+    <color name="star">#F5A524</color>
+    <color name="orange">#C2701C</color>
     <color name="red">#C0392B</color>
     <color name="icon_bg">#FAFCFD</color>
 </resources>

@@ -5,7 +5,10 @@ import android.widget.ImageView
 import androidx.recyclerview.widget.RecyclerView
 import coil.load
 
-/** Bande horizontale de photos (adresses web ou images locales content://). */
+/**
+ * Bande horizontale de photos (adresses web ou images locales content://).
+ * Avec widthDp <= 0, chaque photo occupe toute la largeur et toute la hauteur de la bande.
+ */
 class PhotoAdapter(
     private val items: List<String>,
     private val widthDp: Int,
@@ -18,8 +21,15 @@ class PhotoAdapter(
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
         val d = parent.resources.displayMetrics.density
         val img = ImageView(parent.context)
-        val lp = ViewGroup.MarginLayoutParams((widthDp * d).toInt(), (heightDp * d).toInt())
-        lp.rightMargin = (6 * d).toInt()
+        val lp = if (widthDp <= 0) {
+            ViewGroup.MarginLayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        } else {
+            ViewGroup.MarginLayoutParams((widthDp * d).toInt(), (heightDp * d).toInt()).also {
+                it.rightMargin = (6 * d).toInt()
+            }
+        }
         img.layoutParams = lp
         img.scaleType = ImageView.ScaleType.CENTER_CROP
         img.contentDescription = "Photo du logement"

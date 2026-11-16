@@ -92,7 +92,7 @@
                 android:layout_marginTop="12dp"
                 android:lineSpacingExtra="3dp"
                 android:text="Propriétaire : chargement…"
-                android:textColor="@color/navy"
+                android:textColor="@color/ink"
                 android:textIsSelectable="true"
                 android:textSize="15sp" />
 

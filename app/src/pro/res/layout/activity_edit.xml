@@ -8,14 +8,14 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="16dp">
+        android:padding="22dp">
 
         <TextView
             android:id="@+id/screenTitle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Nouvelle annonce"
-            android:textColor="@color/navy"
+            android:textColor="@color/ink"
             android:textSize="22sp"
             android:textStyle="bold" />
 
@@ -184,7 +184,6 @@
             android:layout_width="match_parent"
             android:layout_height="58dp"
             android:layout_marginTop="12dp"
-            android:backgroundTint="@color/green"
             android:text="Envoyer pour vérification"
             android:textSize="16sp" />
 

@@ -1,110 +1,291 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/white">
 
-    <LinearLayout
+    <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical">
-
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/photos"
-            android:layout_width="match_parent"
-            android:layout_height="240dp"
-            android:background="@drawable/ph" />
+        android:layout_height="match_parent"
+        android:clipToPadding="false"
+        android:paddingBottom="96dp">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:padding="16dp">
+            android:orientation="vertical">
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="✔ Annonce vérifiée"
-                android:textColor="@color/green_dark"
-                android:textSize="13sp"
-                android:textStyle="bold" />
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="380dp"
+                android:background="@drawable/ph">
 
-            <TextView
-                android:id="@+id/titre"
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/photos"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent" />
+
+                <TextView
+                    android:id="@+id/compteur"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="bottom|center_horizontal"
+                    android:layout_marginBottom="46dp"
+                    android:background="@drawable/bg_pill_dark"
+                    android:fontFamily="@font/outfit_semibold"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:paddingTop="5dp"
+                    android:paddingBottom="5dp"
+                    android:textColor="@color/white"
+                    android:textSize="12sp"
+                    android:visibility="gone" />
+            </FrameLayout>
+
+            <!-- Feuille blanche arrondie qui remonte sur la photo -->
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:textColor="@color/text"
-                android:textSize="21sp"
-                android:textStyle="bold" />
+                android:layout_marginTop="-32dp"
+                android:background="@drawable/bg_sheet"
+                android:orientation="vertical"
+                android:paddingStart="22dp"
+                android:paddingEnd="22dp"
+                android:paddingTop="26dp"
+                android:paddingBottom="24dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_pill_grey"
+                    android:fontFamily="@font/outfit_semibold"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:paddingTop="6dp"
+                    android:paddingBottom="6dp"
+                    android:text="✔ Annonce vérifiée"
+                    android:textColor="@color/green_dark"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/titre"
+                    style="@style/Title"
+                    android:layout_marginTop="12dp"
+                    android:textSize="27sp" />
+
+                <TextView
+                    android:id="@+id/lieu"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:fontFamily="@font/outfit_semibold"
+                    android:textColor="@color/ink"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:id="@+id/noteResume"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:fontFamily="@font/outfit_semibold"
+                    android:textColor="@color/star"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:id="@+id/description"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:lineSpacingExtra="4dp"
+                    android:textColor="@color/text_dim"
+                    android:textIsSelectable="true"
+                    android:textSize="14sp" />
+
+                <HorizontalScrollView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:scrollbars="none">
+
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:id="@+id/chipType"
+                            style="@style/Chip" />
+
+                        <TextView
+                            android:id="@+id/chipPieces"
+                            style="@style/Chip" />
+
+                        <TextView
+                            android:id="@+id/chipCaution"
+                            style="@style/Chip" />
+
+                        <TextView
+                            android:id="@+id/chipAvance"
+                            style="@style/Chip" />
+                    </LinearLayout>
+                </HorizontalScrollView>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="18dp"
+                    android:orientation="horizontal">
+
+                    <Button
+                        android:id="@+id/whatsappBtn"
+                        android:layout_width="0dp"
+                        android:layout_height="58dp"
+                        android:layout_marginEnd="8dp"
+                        android:layout_weight="1"
+                        android:backgroundTint="@color/green_dark"
+                        android:text="WhatsApp" />
+
+                    <Button
+                        android:id="@+id/callBtn"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="58dp"
+                        android:layout_weight="1"
+                        android:text="Appeler" />
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:background="@drawable/bg_field"
+                    android:lineSpacingExtra="2dp"
+                    android:padding="14dp"
+                    android:text="Conseil : ne payez jamais de frais de visite, de caution ou d'avance avant d'avoir visité le logement."
+                    android:textColor="@color/orange"
+                    android:textSize="13sp" />
+
+                <TextView
+                    style="@style/Section"
+                    android:text="Avis et notes" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:id="@+id/avisMoyenne"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="@font/outfit_bold"
+                            android:textColor="@color/ink"
+                            android:textSize="30sp" />
+
+                        <TextView
+                            android:id="@+id/avisNombre"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textColor="@color/text_dim"
+                            android:textSize="13sp" />
+                    </LinearLayout>
+
+                    <Button
+                        android:id="@+id/avisBtn"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="54dp"
+                        android:text="Donner mon avis" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/avisListe"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical" />
+
+                <Button
+                    android:id="@+id/reportBtn"
+                    style="@style/Widget.MaterialComponents.Button.TextButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="52dp"
+                    android:layout_marginTop="14dp"
+                    android:text="Signaler cette annonce"
+                    android:textColor="@color/red" />
+            </LinearLayout>
+        </LinearLayout>
+    </ScrollView>
+
+    <!-- Boutons ronds posés sur la photo -->
+    <ImageView
+        android:id="@+id/backBtn"
+        style="@style/RoundIcon"
+        android:layout_margin="16dp"
+        android:background="@drawable/bg_circle_white"
+        android:contentDescription="Retour"
+        android:elevation="4dp"
+        android:src="@drawable/ic_back" />
+
+    <ImageView
+        android:id="@+id/favBtn"
+        style="@style/RoundIcon"
+        android:layout_gravity="end"
+        android:layout_margin="16dp"
+        android:background="@drawable/bg_circle_white"
+        android:contentDescription="Enregistrer dans mes favoris"
+        android:elevation="4dp"
+        android:src="@drawable/ic_bookmark_border" />
+
+    <!-- Loyer et action principale, toujours visibles -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:background="@drawable/bg_bottom_bar"
+        android:elevation="10dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="22dp"
+        android:paddingEnd="22dp"
+        android:paddingTop="14dp"
+        android:paddingBottom="14dp">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
 
             <TextView
                 android:id="@+id/prix"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:textColor="@color/green_dark"
-                android:textSize="19sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/lieu"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:textColor="@color/text_dim"
-                android:textSize="15sp" />
-
-            <TextView
-                android:id="@+id/conditions"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:lineSpacingExtra="3dp"
-                android:textColor="@color/text"
-                android:textSize="15sp" />
-
-            <TextView
-                android:id="@+id/description"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:lineSpacingExtra="3dp"
-                android:textColor="@color/text"
-                android:textIsSelectable="true"
-                android:textSize="15sp" />
-
-            <Button
-                android:id="@+id/whatsappBtn"
-                android:layout_width="match_parent"
-                android:layout_height="56dp"
-                android:layout_marginTop="18dp"
-                android:backgroundTint="@color/green"
-                android:text="Écrire sur WhatsApp" />
-
-            <Button
-                android:id="@+id/callBtn"
-                android:layout_width="match_parent"
-                android:layout_height="56dp"
-                android:layout_marginTop="4dp"
-                android:text="Appeler" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="14dp"
-                android:text="Conseil : ne payez jamais de frais de visite, de caution ou d'avance avant d'avoir visité le logement."
-                android:textColor="@color/orange"
-                android:textSize="13sp" />
-
-            <Button
-                android:id="@+id/reportBtn"
-                style="@style/Widget.MaterialComponents.Button.TextButton"
                 android:layout_width="wrap_content"
-                android:layout_height="52dp"
-                android:layout_marginTop="6dp"
-                android:text="Signaler cette annonce"
-                android:textColor="@color/red" />
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/outfit_bold"
+                android:textColor="@color/ink"
+                android:textSize="20sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="par mois"
+                android:textColor="@color/text_dim"
+                android:textSize="12sp" />
         </LinearLayout>
+
+        <Button
+            android:id="@+id/demandeBtn"
+            android:layout_width="wrap_content"
+            android:layout_height="60dp"
+            android:paddingStart="26dp"
+            android:paddingEnd="26dp"
+            android:text="Envoyer ma demande" />
     </LinearLayout>
-</ScrollView>
+</FrameLayout>

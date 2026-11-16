@@ -19,10 +19,20 @@ data class Annonce(
     val disponible: Boolean,
     val status: String,
     val motifRefus: String,
+    val proprietaire: String,
+    val noteMoyenne: Double,
+    val nbAvis: Int,
     /** JSON d'origine, pour passer l'annonce d'un écran à l'autre. */
     val raw: String
 ) {
     fun prix(): String = String.format(Locale.FRANCE, "%,d FCFA / mois", loyer)
+
+    fun prixCourt(): String = String.format(Locale.FRANCE, "%,d FCFA", loyer)
+
+    /** « ★ 4,5 (12) », ou « Nouveau » tant qu'il n'y a aucun avis. */
+    fun noteTexte(): String =
+        if (nbAvis <= 0) "Nouveau"
+        else String.format(Locale.FRANCE, "★ %.1f (%d)", noteMoyenne, nbAvis)
 
     fun lieu(): String = listOf(quartier, ville).filter { it.isNotBlank() }.joinToString(", ")
 
@@ -68,6 +78,9 @@ data class Annonce(
                 disponible = o.optBoolean("disponible", true),
                 status = o.str("status"),
                 motifRefus = o.str("motif_refus"),
+                proprietaire = o.str("proprietaire"),
+                noteMoyenne = if (o.isNull("note_moyenne")) 0.0 else o.optDouble("note_moyenne", 0.0),
+                nbAvis = o.optInt("nb_avis", 0),
                 raw = o.toString()
             )
         }
