@@ -24,7 +24,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
             android:text="Connexion propriétaire / agence"
-            android:textColor="@color/navy"
+            android:textColor="@color/ink"
             android:textSize="20sp"
             android:textStyle="bold" />
 

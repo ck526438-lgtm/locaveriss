@@ -22,6 +22,10 @@ data class Signalement(val id: String, val motif: String, val annonce: Annonce?)
 
 /** Accès à Supabase (Auth, base de données, stockage) par son API REST. À appeler hors du thread principal. */
 object Api {
+    const val TRI_RECENTS = "recents"
+    const val TRI_NOTES = "notes"
+    const val TRI_PRIX = "prix"
+
     private val JSON_TYPE = "application/json; charset=utf-8".toMediaType()
     private val JPEG_TYPE = "image/jpeg".toMediaType()
 
@@ -119,6 +123,7 @@ object Api {
             msg.contains("Email not confirmed", true) ->
                 "Confirme d'abord ton email (lien reçu par mail), puis connecte-toi."
             msg.contains("Password should be", true) -> "Mot de passe trop court (6 caractères minimum)."
+            msg.contains("row-level security", true) -> "Action non autorisée avec ce compte."
             code == 401 || code == 403 -> "Session expirée ou accès refusé. Reconnecte-toi."
             msg.isNotBlank() -> msg
             else -> "Erreur du serveur ($code)."
@@ -181,12 +186,17 @@ object Api {
     }
 
     /** Annonces vérifiées et disponibles, visibles par tout le monde. */
-    fun listPublic(recherche: String, type: String?, loyerMax: Int?): List<Annonce> {
+    fun listPublic(recherche: String, type: String?, loyerMax: Int?, tri: String = TRI_RECENTS): List<Annonce> {
+        val ordre = when (tri) {
+            TRI_NOTES -> "note_moyenne.desc,nb_avis.desc,created_at.desc"
+            TRI_PRIX -> "loyer.asc,created_at.desc"
+            else -> "created_at.desc"
+        }
         val b = url("rest/v1/annonces")
             .addQueryParameter("select", "*")
             .addQueryParameter("status", "eq.verifiee")
             .addQueryParameter("disponible", "eq.true")
-            .addQueryParameter("order", "created_at.desc")
+            .addQueryParameter("order", ordre)
             .addQueryParameter("limit", "100")
         val q = recherche.filter { it.isLetterOrDigit() || it == ' ' || it == '-' }.trim()
         if (q.isNotEmpty()) {
@@ -195,6 +205,20 @@ object Api {
         if (type != null) b.addQueryParameter("type", "eq.$type")
         if (loyerMax != null) b.addQueryParameter("loyer", "lte.$loyerMax")
         return parseList(send("GET", b.build()))
+    }
+
+    /** Annonces enregistrées en favoris qui sont toujours en ligne. */
+    fun listParIds(ids: Collection<String>): List<Annonce> {
+        val propres = ids.filter { id -> id.isNotEmpty() && id.all { it.isLetterOrDigit() || it == '-' } }
+        if (propres.isEmpty()) return emptyList()
+        val u = url("rest/v1/annonces")
+            .addQueryParameter("select", "*")
+            .addQueryParameter("id", "in.(${propres.joinToString(",")})")
+            .addQueryParameter("status", "eq.verifiee")
+            .addQueryParameter("disponible", "eq.true")
+            .addQueryParameter("order", "created_at.desc")
+            .build()
+        return parseList(send("GET", u))
     }
 
     fun mesAnnonces(): List<Annonce> {
@@ -237,6 +261,109 @@ object Api {
     fun signaler(annonceId: String, motif: String) {
         val body = JSONObject().put("annonce_id", annonceId).put("motif", motif)
         send("POST", url("rest/v1/signalements").build(), json(body), prefer = "return=minimal")
+    }
+
+    // ---------- Avis et notes (appli chercheur) ----------
+
+    /** Les avis d'une annonce, du plus récent au plus ancien. Lisibles sans compte. */
+    fun avis(annonceId: String): List<Avis> {
+        val u = url("rest/v1/avis")
+            .addQueryParameter("select", "id,auteur,auteur_nom,note,commentaire,created_at")
+            .addQueryParameter("annonce_id", "eq.$annonceId")
+            .addQueryParameter("order", "created_at.desc")
+            .addQueryParameter("limit", "100")
+            .build()
+        val arr = JSONArray(send("GET", u))
+        val out = ArrayList<Avis>(arr.length())
+        for (i in 0 until arr.length()) out.add(Avis.from(arr.getJSONObject(i)))
+        return out
+    }
+
+    /** Publie l'avis du compte connecté, ou remplace celui qu'il a déjà donné sur cette annonce. */
+    fun donnerAvis(annonceId: String, note: Int, commentaire: String) {
+        val uid = userId ?: throw ApiException(401, "Connecte-toi pour donner ton avis.")
+        val existant = url("rest/v1/avis")
+            .addQueryParameter("select", "id")
+            .addQueryParameter("annonce_id", "eq.$annonceId")
+            .addQueryParameter("auteur", "eq.$uid")
+            .build()
+        val deja = JSONArray(send("GET", existant, auth = true))
+        val champs = JSONObject().put("note", note.coerceIn(1, 5)).put("commentaire", commentaire)
+        if (deja.length() > 0) {
+            val id = deja.getJSONObject(0).optString("id")
+            val u = url("rest/v1/avis").addQueryParameter("id", "eq.$id").build()
+            send("PATCH", u, json(champs), auth = true, prefer = "return=minimal")
+        } else {
+            champs.put("annonce_id", annonceId)
+            send("POST", url("rest/v1/avis").build(), json(champs), auth = true, prefer = "return=minimal")
+        }
+    }
+
+    // ---------- Profil locataire et demandes ----------
+
+    /** Profil du compte connecté (null s'il est introuvable). */
+    fun monProfil(): Profil? {
+        val uid = userId ?: throw ApiException(401, "Reconnecte-toi.")
+        val u = url("rest/v1/profils")
+            .addQueryParameter("select", "*")
+            .addQueryParameter("id", "eq.$uid")
+            .build()
+        val arr = JSONArray(send("GET", u, auth = true))
+        return if (arr.length() > 0) Profil.from(arr.getJSONObject(0)) else null
+    }
+
+    fun enregistrerProfil(champs: JSONObject) {
+        val uid = userId ?: throw ApiException(401, "Reconnecte-toi.")
+        val u = url("rest/v1/profils").addQueryParameter("id", "eq.$uid").build()
+        send("PATCH", u, json(champs), auth = true, prefer = "return=minimal")
+    }
+
+    /** Le chercheur envoie sa demande au propriétaire ; son profil locataire l'accompagne. */
+    fun envoyerDemande(annonceId: String, message: String) {
+        val body = JSONObject().put("annonce_id", annonceId).put("message", message)
+        try {
+            send("POST", url("rest/v1/demandes").build(), json(body), auth = true, prefer = "return=minimal")
+        } catch (e: ApiException) {
+            if (e.code == 409) throw ApiException(409, "Tu as déjà envoyé une demande pour ce logement.")
+            throw e
+        }
+    }
+
+    /** Demandes envoyées par le chercheur connecté. */
+    fun mesDemandes(): List<Demande> {
+        val uid = userId ?: throw ApiException(401, "Reconnecte-toi.")
+        val u = url("rest/v1/demandes")
+            .addQueryParameter("select", "id,message,status,created_at,annonces(titre)")
+            .addQueryParameter("locataire", "eq.$uid")
+            .addQueryParameter("order", "created_at.desc")
+            .addQueryParameter("limit", "100")
+            .build()
+        return parseDemandes(send("GET", u, auth = true))
+    }
+
+    /** Demandes reçues sur les annonces du propriétaire connecté, avec le profil de chaque locataire. */
+    fun demandesRecues(): List<Demande> {
+        val uid = userId ?: throw ApiException(401, "Reconnecte-toi.")
+        val u = url("rest/v1/demandes")
+            .addQueryParameter("select", "id,message,status,created_at,profils(*),annonces!inner(titre,proprietaire)")
+            .addQueryParameter("annonces.proprietaire", "eq.$uid")
+            .addQueryParameter("order", "created_at.desc")
+            .addQueryParameter("limit", "200")
+            .build()
+        return parseDemandes(send("GET", u, auth = true))
+    }
+
+    /** Le propriétaire accepte ("acceptee") ou refuse ("refusee") une demande. */
+    fun repondreDemande(id: String, status: String) {
+        val u = url("rest/v1/demandes").addQueryParameter("id", "eq.$id").build()
+        send("PATCH", u, json(JSONObject().put("status", status)), auth = true, prefer = "return=minimal")
+    }
+
+    private fun parseDemandes(text: String): List<Demande> {
+        val arr = JSONArray(text)
+        val out = ArrayList<Demande>(arr.length())
+        for (i in 0 until arr.length()) out.add(Demande.from(arr.getJSONObject(i)))
+        return out
     }
 
     // ---------- Administration (comptes présents dans la table admins) ----------

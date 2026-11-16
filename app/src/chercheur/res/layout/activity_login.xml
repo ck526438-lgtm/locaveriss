@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/white"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="22dp">
+
+        <ImageView
+            android:id="@+id/backBtn"
+            style="@style/RoundIcon"
+            android:contentDescription="Retour"
+            android:src="@drawable/ic_back" />
+
+        <ImageView
+            android:layout_width="match_parent"
+            android:layout_height="64dp"
+            android:layout_marginTop="18dp"
+            android:contentDescription="Locavériss"
+            android:scaleType="fitStart"
+            android:src="@drawable/logo_full" />
+
+        <TextView
+            android:id="@+id/title"
+            style="@style/Title"
+            android:layout_marginTop="18dp"
+            android:text="Connexion" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="8dp"
+            android:text="Un compte sert à donner ton avis sur les annonces et à envoyer ton profil locataire aux propriétaires."
+            android:textColor="@color/text_dim"
+            android:textSize="14sp" />
+
+        <LinearLayout
+            android:id="@+id/signupFields"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <EditText
+                android:id="@+id/nomInput"
+                style="@style/Field"
+                android:hint="Nom complet"
+                android:importantForAutofill="no"
+                android:inputType="textPersonName|textCapWords" />
+
+            <EditText
+                android:id="@+id/telInput"
+                style="@style/Field"
+                android:hint="Téléphone / WhatsApp"
+                android:importantForAutofill="no"
+                android:inputType="phone" />
+        </LinearLayout>
+
+        <EditText
+            android:id="@+id/emailInput"
+            style="@style/Field"
+            android:hint="Email"
+            android:importantForAutofill="no"
+            android:inputType="textEmailAddress" />
+
+        <EditText
+            android:id="@+id/passInput"
+            style="@style/Field"
+            android:hint="Mot de passe (6 caractères minimum)"
+            android:importantForAutofill="no"
+            android:inputType="textPassword" />
+
+        <TextView
+            android:id="@+id/errorText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:textColor="@color/red"
+            android:textSize="14sp"
+            android:visibility="gone" />
+
+        <Button
+            android:id="@+id/submitBtn"
+            android:layout_width="match_parent"
+            android:layout_height="60dp"
+            android:layout_marginTop="14dp"
+            android:text="Se connecter" />
+
+        <Button
+            android:id="@+id/switchBtn"
+            style="@style/Widget.MaterialComponents.Button.TextButton"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:text="Pas encore de compte ? Créer un compte" />
+    </LinearLayout>
+</ScrollView>
