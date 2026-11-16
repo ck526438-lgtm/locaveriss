@@ -20,9 +20,10 @@ android {
         buildConfigField("String", "SUPABASE_KEY", "\"$supabaseKey\"")
     }
 
-    // Deux applis à partir du même code :
+    // Trois applis à partir du même code :
     //  - chercheur : pour les personnes en quête de logement
     //  - pro       : pour les propriétaires et agences qui publient
+    //  - admin     : pour l'équipe qui valide ou refuse les annonces
     flavorDimensions += "role"
     productFlavors {
         create("chercheur") {
@@ -32,6 +33,11 @@ android {
             dimension = "role"
             applicationIdSuffix = ".pro"
             versionNameSuffix = "-pro"
+        }
+        create("admin") {
+            dimension = "role"
+            applicationIdSuffix = ".admin"
+            versionNameSuffix = "-admin"
         }
     }
 

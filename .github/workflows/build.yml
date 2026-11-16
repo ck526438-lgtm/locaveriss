@@ -23,13 +23,14 @@ jobs:
         with:
           gradle-version: "8.7"
 
-      - name: Compiler les deux APK
-        run: gradle assembleChercheurDebug assembleProDebug --no-daemon --stacktrace
+      - name: Compiler les trois APK
+        run: gradle assembleChercheurDebug assembleProDebug assembleAdminDebug --no-daemon --stacktrace
 
       - name: Renommer les APK
         run: |
           mv app/build/outputs/apk/chercheur/debug/app-chercheur-debug.apk Locaveriss.apk
           mv app/build/outputs/apk/pro/debug/app-pro-debug.apk Locaveriss-Pro.apk
+          mv app/build/outputs/apk/admin/debug/app-admin-debug.apk Locaveriss-Admin.apk
 
       - uses: actions/upload-artifact@v4
         with:
@@ -37,6 +38,7 @@ jobs:
           path: |
             Locaveriss.apk
             Locaveriss-Pro.apk
+            Locaveriss-Admin.apk
 
       - name: Publier dans Releases
         uses: softprops/action-gh-release@v2
@@ -46,3 +48,4 @@ jobs:
           files: |
             Locaveriss.apk
             Locaveriss-Pro.apk
+            Locaveriss-Admin.apk

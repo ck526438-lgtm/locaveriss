@@ -1,23 +1,24 @@
 # Locavériss — Location et immobilier
 
-Annonces vérifiées de logements, sans faux démarcheurs. Deux applis Android issues du même code :
+Annonces vérifiées de logements, sans faux démarcheurs. Trois applis Android issues du même code :
 
 | Appli | Pour qui | Fonctions |
 |---|---|---|
 | **Locavériss** | Personnes en quête de logement | Recherche par ville/quartier, type et loyer max ; fiche avec photos, caution, avance ; contact WhatsApp / appel ; signalement |
 | **Locavériss Pro** | Propriétaires et agences | Compte, publication avec photos, suivi du statut, modification, « loué », suppression |
+| **Locavériss Admin** | Équipe Locavériss | Annonces à vérifier, boutons Valider / Refuser (avec motif), signalements, suppression |
 
 Les applis démarrent **vides** : aucune annonce de démonstration.
 
 ## Comment une annonce est vérifiée
 
 1. Le propriétaire publie → statut `en_attente` (invisible pour les chercheurs).
-2. L'administrateur ouvre Supabase > Table Editor > `annonces`, contrôle l'annonce
-   (appel du propriétaire, photos, etc.) et met `status` à `verifiee`
-   (ou `refusee` avec un `motif_refus`).
+2. L'administrateur ouvre **Locavériss Admin**, contrôle l'annonce (photos, appel du
+   propriétaire) et touche **Valider** ou **Refuser** (avec un motif).
 3. Toute modification du contenu par le propriétaire renvoie l'annonce en `en_attente`.
 
-Les signalements des chercheurs arrivent dans la table `signalements`.
+Les signalements des chercheurs apparaissent dans Locavériss Admin (liste « Signalements »).
+Seuls les comptes inscrits dans la table `admins` peuvent se connecter à l'appli Admin.
 
 ## Mise en place de Supabase
 
@@ -31,5 +32,5 @@ Les signalements des chercheurs arrivent dans la table `signalements`.
 
 ## Compilation
 
-Chaque envoi sur `main` compile les deux APK (GitHub Actions) et les publie dans **Releases**.
-En local : `gradle assembleChercheurDebug assembleProDebug` (JDK 17, Gradle 8.7).
+Chaque envoi sur `main` compile les trois APK (GitHub Actions) et les publie dans **Releases**.
+En local : `gradle assembleChercheurDebug assembleProDebug assembleAdminDebug` (JDK 17, Gradle 8.7).

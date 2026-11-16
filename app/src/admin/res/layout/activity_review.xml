@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/white">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/photos"
+            android:layout_width="match_parent"
+            android:layout_height="240dp"
+            android:background="@drawable/ph" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <TextView
+                android:id="@+id/statut"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/signalement"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:textColor="@color/red"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/titre"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:textColor="@color/text"
+                android:textIsSelectable="true"
+                android:textSize="21sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/prix"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:textColor="@color/green_dark"
+                android:textSize="19sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/lieu"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:textColor="@color/text_dim"
+                android:textSize="15sp" />
+
+            <TextView
+                android:id="@+id/conditions"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:lineSpacingExtra="3dp"
+                android:textColor="@color/text"
+                android:textIsSelectable="true"
+                android:textSize="15sp" />
+
+            <TextView
+                android:id="@+id/description"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:lineSpacingExtra="3dp"
+                android:textColor="@color/text"
+                android:textIsSelectable="true"
+                android:textSize="15sp" />
+
+            <TextView
+                android:id="@+id/proprietaire"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:lineSpacingExtra="3dp"
+                android:text="Propriétaire : chargement…"
+                android:textColor="@color/navy"
+                android:textIsSelectable="true"
+                android:textSize="15sp" />
+
+            <TextView
+                android:id="@+id/errorText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:textColor="@color/red"
+                android:textSize="14sp"
+                android:visibility="gone" />
+
+            <ProgressBar
+                android:id="@+id/progress"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="10dp"
+                android:visibility="gone" />
+
+            <Button
+                android:id="@+id/validerBtn"
+                android:layout_width="match_parent"
+                android:layout_height="58dp"
+                android:layout_marginTop="14dp"
+                android:backgroundTint="@color/green"
+                android:text="✔ Valider l'annonce"
+                android:textSize="16sp" />
+
+            <Button
+                android:id="@+id/refuserBtn"
+                android:layout_width="match_parent"
+                android:layout_height="58dp"
+                android:layout_marginTop="4dp"
+                android:backgroundTint="@color/red"
+                android:text="✖ Refuser l'annonce"
+                android:textSize="16sp" />
+
+            <Button
+                android:id="@+id/callBtn"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="match_parent"
+                android:layout_height="54dp"
+                android:layout_marginTop="4dp"
+                android:text="Appeler le numéro de l'annonce" />
+
+            <Button
+                android:id="@+id/sigBtn"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="match_parent"
+                android:layout_height="54dp"
+                android:layout_marginTop="4dp"
+                android:text="Classer le signalement (traité)"
+                android:visibility="gone" />
+
+            <Button
+                android:id="@+id/deleteBtn"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:text="Supprimer définitivement l'annonce"
+                android:textColor="@color/red" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

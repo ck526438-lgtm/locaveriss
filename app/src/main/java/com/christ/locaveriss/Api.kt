@@ -17,6 +17,9 @@ import java.util.concurrent.TimeUnit
 
 class ApiException(val code: Int, message: String) : Exception(message)
 
+/** Signalement envoyé par un chercheur, avec l'annonce concernée. */
+data class Signalement(val id: String, val motif: String, val annonce: Annonce?)
+
 /** Accès à Supabase (Auth, base de données, stockage) par son API REST. À appeler hors du thread principal. */
 object Api {
     private val JSON_TYPE = "application/json; charset=utf-8".toMediaType()
@@ -234,5 +237,61 @@ object Api {
     fun signaler(annonceId: String, motif: String) {
         val body = JSONObject().put("annonce_id", annonceId).put("motif", motif)
         send("POST", url("rest/v1/signalements").build(), json(body), prefer = "return=minimal")
+    }
+
+    // ---------- Administration (comptes présents dans la table admins) ----------
+
+    fun estAdmin(): Boolean {
+        val text = send("POST", url("rest/v1/rpc/is_admin").build(), json(JSONObject()), auth = true)
+        return text.trim() == "true"
+    }
+
+    fun annoncesParStatut(status: String): List<Annonce> {
+        val u = url("rest/v1/annonces")
+            .addQueryParameter("select", "*")
+            .addQueryParameter("status", "eq.$status")
+            .addQueryParameter("order", if (status == "en_attente") "created_at.asc" else "created_at.desc")
+            .addQueryParameter("limit", "200")
+            .build()
+        return parseList(send("GET", u, auth = true))
+    }
+
+    fun changerStatut(id: String, status: String, motif: String?) {
+        val body = JSONObject()
+            .put("status", status)
+            .put("motif_refus", if (motif.isNullOrBlank()) JSONObject.NULL else motif)
+        val u = url("rest/v1/annonces").addQueryParameter("id", "eq.$id").build()
+        send("PATCH", u, json(body), auth = true, prefer = "return=minimal")
+    }
+
+    fun signalements(): List<Signalement> {
+        val u = url("rest/v1/signalements")
+            .addQueryParameter("select", "id,motif,created_at,annonces(*)")
+            .addQueryParameter("order", "created_at.desc")
+            .addQueryParameter("limit", "200")
+            .build()
+        val arr = JSONArray(send("GET", u, auth = true))
+        val out = ArrayList<Signalement>(arr.length())
+        for (i in 0 until arr.length()) {
+            val o = arr.getJSONObject(i)
+            val a = o.optJSONObject("annonces")
+            out.add(Signalement(o.optString("id"), o.optString("motif"), if (a != null) Annonce.from(a) else null))
+        }
+        return out
+    }
+
+    fun supprimerSignalement(id: String) {
+        val u = url("rest/v1/signalements").addQueryParameter("id", "eq.$id").build()
+        send("DELETE", u, auth = true)
+    }
+
+    /** Nom, téléphone et type de compte d'un propriétaire (null si introuvable). */
+    fun profil(id: String): JSONObject? {
+        val u = url("rest/v1/profils")
+            .addQueryParameter("select", "nom,telephone,type_compte")
+            .addQueryParameter("id", "eq.$id")
+            .build()
+        val arr = JSONArray(send("GET", u, auth = true))
+        return if (arr.length() > 0) arr.getJSONObject(0) else null
     }
 }

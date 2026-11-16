@@ -150,3 +150,74 @@ drop policy if exists "photos: supprimer les siennes" on storage.objects;
 create policy "photos: supprimer les siennes" on storage.objects
   for delete to authenticated
   using (bucket_id = 'photos' and (storage.foldername(name))[1] = auth.uid()::text);
+
+-- ---------- Administration (appli Locavériss Admin) ----------
+-- Seuls les comptes présents dans la table admins peuvent valider, refuser
+-- ou supprimer n'importe quelle annonce et lire les signalements.
+-- Pour nommer un administrateur :
+--   insert into public.admins (id) select id from auth.users where email = 'son@email.com';
+create table if not exists public.admins (
+  id uuid primary key references auth.users (id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+alter table public.admins enable row level security;
+
+create or replace function public.is_admin()
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.admins where id = auth.uid());
+$$;
+
+create or replace function public.proteger_annonce()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null or public.is_admin() then
+    return new;                       -- tableau de bord ou administrateur
+  end if;
+  if tg_op = 'INSERT' then
+    new.proprietaire := auth.uid();
+    new.status := 'en_attente';
+    new.motif_refus := null;
+  else
+    new.proprietaire := old.proprietaire;
+    new.motif_refus := old.motif_refus;
+    if row(new.titre, new.type, new.ville, new.quartier, new.loyer, new.caution_mois,
+           new.avance_mois, new.pieces, new.description, new.telephone, new.photos)
+       is distinct from
+       row(old.titre, old.type, old.ville, old.quartier, old.loyer, old.caution_mois,
+           old.avance_mois, old.pieces, old.description, old.telephone, old.photos) then
+      new.status := 'en_attente';
+      new.motif_refus := null;
+    else
+      new.status := old.status;
+    end if;
+  end if;
+  return new;
+end $$;
+
+drop policy if exists "annonces: lecture" on public.annonces;
+create policy "annonces: lecture" on public.annonces
+  for select to anon, authenticated
+  using ((status = 'verifiee' and disponible) or proprietaire = auth.uid() or public.is_admin());
+
+drop policy if exists "annonces: admin modifie" on public.annonces;
+create policy "annonces: admin modifie" on public.annonces
+  for update to authenticated using (public.is_admin()) with check (public.is_admin());
+
+drop policy if exists "annonces: admin supprime" on public.annonces;
+create policy "annonces: admin supprime" on public.annonces
+  for delete to authenticated using (public.is_admin());
+
+drop policy if exists "profil: lire le sien" on public.profils;
+create policy "profil: lire le sien" on public.profils
+  for select to authenticated using (id = auth.uid() or public.is_admin());
+
+drop policy if exists "signalements: admin lit" on public.signalements;
+create policy "signalements: admin lit" on public.signalements
+  for select to authenticated using (public.is_admin());
+
+drop policy if exists "signalements: admin supprime" on public.signalements;
+create policy "signalements: admin supprime" on public.signalements
+  for delete to authenticated using (public.is_admin());
+
+grant select, delete on public.signalements to authenticated;
+grant execute on function public.is_admin() to anon, authenticated;
