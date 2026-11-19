@@ -432,3 +432,231 @@ grant update (status) on public.demandes to authenticated;
 grant delete on public.demandes to authenticated;
 grant update (nom, telephone, profession, situation, personnes, budget, zone, presentation)
   on public.profils to authenticated;
+
+-- =====================================================================
+-- Mise à jour 2 : filtres étudiants, règle légale des 2 mois,
+-- justificatifs du propriétaire, Pass Réservation (Mobile Money).
+-- =====================================================================
+
+-- ---------- Filtres étudiants ----------
+alter table public.annonces
+  add column if not exists campus text not null default '',
+  add column if not exists distance_campus integer not null default 0,      -- minutes à pied
+  add column if not exists compteur_individuel boolean not null default false, -- compteur CIE/SODECI
+  add column if not exists frais_agence integer not null default 0;
+create index if not exists annonces_campus_idx on public.annonces (campus);
+
+-- ---------- Justificatifs (pièce d'identité + preuve de propriété) ----------
+-- Stockés dans un espace PRIVÉ : seuls le propriétaire et les administrateurs les voient.
+create table if not exists public.justificatifs (
+  id uuid primary key default gen_random_uuid(),
+  annonce_id uuid not null references public.annonces (id) on delete cascade,
+  proprietaire uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  type text not null check (type in ('cni', 'propriete')),
+  chemin text not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists justificatifs_annonce_idx on public.justificatifs (annonce_id);
+alter table public.justificatifs enable row level security;
+
+drop policy if exists "justificatifs: envoyer" on public.justificatifs;
+create policy "justificatifs: envoyer" on public.justificatifs
+  for insert to authenticated
+  with check (
+    proprietaire = auth.uid()
+    and chemin like auth.uid()::text || '/%'
+    and exists (select 1 from public.annonces a where a.id = annonce_id and a.proprietaire = auth.uid())
+  );
+
+drop policy if exists "justificatifs: lecture" on public.justificatifs;
+create policy "justificatifs: lecture" on public.justificatifs
+  for select to authenticated using (proprietaire = auth.uid() or public.is_admin());
+
+drop policy if exists "justificatifs: supprimer" on public.justificatifs;
+create policy "justificatifs: supprimer" on public.justificatifs
+  for delete to authenticated using (proprietaire = auth.uid() or public.is_admin());
+
+revoke all on public.justificatifs from anon, authenticated;
+grant select, delete on public.justificatifs to authenticated;
+grant insert (annonce_id, type, chemin) on public.justificatifs to authenticated;
+
+insert into storage.buckets (id, name, public)
+values ('justificatifs', 'justificatifs', false)
+on conflict (id) do update set public = false;
+
+drop policy if exists "justificatifs: envoyer dans son dossier" on storage.objects;
+create policy "justificatifs: envoyer dans son dossier" on storage.objects
+  for insert to authenticated
+  with check (bucket_id = 'justificatifs' and (storage.foldername(name))[1] = auth.uid()::text);
+
+drop policy if exists "justificatifs: lire" on storage.objects;
+create policy "justificatifs: lire" on storage.objects
+  for select to authenticated
+  using (bucket_id = 'justificatifs'
+         and ((storage.foldername(name))[1] = auth.uid()::text or public.is_admin()));
+
+drop policy if exists "justificatifs: supprimer" on storage.objects;
+create policy "justificatifs: supprimer" on storage.objects
+  for delete to authenticated
+  using (bucket_id = 'justificatifs'
+         and ((storage.foldername(name))[1] = auth.uid()::text or public.is_admin()));
+
+-- ---------- Protection des annonces (version finale) ----------
+-- + aucune validation sans pièce d'identité ET preuve de propriété ;
+-- + loi n° 2019-576 (Code de la construction et de l'habitat) : 2 mois de caution
+--   et 2 mois d'avance au maximum.
+create or replace function public.proteger_annonce()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if tg_op = 'INSERT' then
+    new.note_moyenne := 0;
+    new.nb_avis := 0;
+  elsif pg_trigger_depth() = 1 then
+    new.note_moyenne := old.note_moyenne;
+    new.nb_avis := old.nb_avis;
+  end if;
+
+  if tg_op = 'UPDATE' and new.status = 'verifiee' and old.status is distinct from 'verifiee' then
+    if not exists (select 1 from public.justificatifs j where j.annonce_id = new.id and j.type = 'cni')
+       or not exists (select 1 from public.justificatifs j where j.annonce_id = new.id and j.type = 'propriete') then
+      raise exception 'Validation impossible : il manque la pièce d''identité ou la preuve de propriété du bailleur.';
+    end if;
+  end if;
+
+  if auth.uid() is null or public.is_admin() then
+    return new;                       -- tableau de bord ou administrateur
+  end if;
+
+  if tg_op = 'INSERT' then
+    new.proprietaire := auth.uid();
+    new.status := 'en_attente';
+    new.motif_refus := null;
+  else
+    new.proprietaire := old.proprietaire;
+    new.motif_refus := old.motif_refus;
+    if row(new.titre, new.type, new.ville, new.quartier, new.loyer, new.caution_mois,
+           new.avance_mois, new.pieces, new.description, new.telephone, new.photos,
+           new.campus, new.distance_campus, new.compteur_individuel, new.frais_agence)
+       is distinct from
+       row(old.titre, old.type, old.ville, old.quartier, old.loyer, old.caution_mois,
+           old.avance_mois, old.pieces, old.description, old.telephone, old.photos,
+           old.campus, old.distance_campus, old.compteur_individuel, old.frais_agence) then
+      new.status := 'en_attente';
+      new.motif_refus := null;
+    else
+      new.status := old.status;
+      return new;                     -- simple changement de disponibilité
+    end if;
+  end if;
+
+  if new.caution_mois > 2 or new.avance_mois > 2 then
+    raise exception 'La loi limite la caution à 2 mois et l''avance à 2 mois (Code de la construction et de l''habitat).';
+  end if;
+  if new.caution_mois < 0 or new.avance_mois < 0 or new.frais_agence < 0 or new.distance_campus < 0 then
+    raise exception 'Valeurs négatives non autorisées.';
+  end if;
+  return new;
+end $$;
+
+-- ---------- Pass Réservation ----------
+-- Réglages : tant que pass_obligatoire = false, les contacts restent libres.
+-- Pour lancer le Pass :  update public.reglages set pass_obligatoire = true;
+-- Offre de lancement :   update public.reglages set prix_pass = 1000;
+create table if not exists public.reglages (
+  id boolean primary key default true check (id),
+  pass_obligatoire boolean not null default false,
+  prix_pass integer not null default 1500 check (prix_pass > 0 and prix_pass % 5 = 0),
+  duree_pass_jours integer not null default 30 check (duree_pass_jours > 0)
+);
+insert into public.reglages (id) values (true) on conflict (id) do nothing;
+alter table public.reglages enable row level security;
+drop policy if exists "reglages: lecture" on public.reglages;
+create policy "reglages: lecture" on public.reglages for select to anon, authenticated using (true);
+revoke all on public.reglages from anon, authenticated;
+grant select on public.reglages to anon, authenticated;
+
+-- Paiements du Pass. Seule la fonction pass-cinetpay (clé service) les écrit.
+create table if not exists public.pass (
+  id uuid primary key default gen_random_uuid(),
+  utilisateur uuid not null references auth.users (id) on delete cascade,
+  transaction_id text not null unique,
+  montant integer not null,
+  duree_jours integer not null default 30,
+  statut text not null default 'en_attente' check (statut in ('en_attente', 'paye', 'echec')),
+  debut timestamptz,
+  fin timestamptz,
+  created_at timestamptz not null default now()
+);
+create index if not exists pass_utilisateur_idx on public.pass (utilisateur, statut, fin desc);
+alter table public.pass enable row level security;
+drop policy if exists "pass: lire le sien" on public.pass;
+create policy "pass: lire le sien" on public.pass
+  for select to authenticated using (utilisateur = auth.uid() or public.is_admin());
+revoke all on public.pass from anon, authenticated;
+grant select on public.pass to authenticated;
+
+create or replace function public.pass_actif(u uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.pass p
+                 where p.utilisateur = u and p.statut = 'paye' and p.fin > now());
+$$;
+
+create or replace function public.pass_requis()
+returns boolean language sql stable security definer set search_path = public as $$
+  select coalesce((select pass_obligatoire from public.reglages limit 1), false);
+$$;
+
+-- État du Pass pour l'appli chercheur : obligatoire ?, prix, durée, fin du Pass en cours.
+create or replace function public.etat_pass()
+returns json language sql stable security definer set search_path = public as $$
+  select json_build_object(
+    'obligatoire', r.pass_obligatoire,
+    'prix', r.prix_pass,
+    'duree', r.duree_pass_jours,
+    'fin', (select max(p.fin) from public.pass p
+            where p.utilisateur = auth.uid() and p.statut = 'paye' and p.fin > now())
+  )
+  from public.reglages r limit 1;
+$$;
+
+-- Le numéro du propriétaire n'est plus lisible directement : il passe par cette fonction,
+-- qui le donne si le Pass n'est pas obligatoire, si le Pass est actif,
+-- au propriétaire lui-même et aux administrateurs. Sinon : null.
+create or replace function public.contact_annonce(p_annonce uuid)
+returns text language plpgsql stable security definer set search_path = public as $$
+declare
+  a record;
+begin
+  select id, proprietaire, telephone, status, disponible into a
+    from public.annonces where id = p_annonce;
+  if not found then return null; end if;
+  if auth.uid() is not null and (a.proprietaire = auth.uid() or public.is_admin()) then
+    return a.telephone;
+  end if;
+  if not (a.status = 'verifiee' and a.disponible) then return null; end if;
+  if public.pass_requis() and not public.pass_actif(auth.uid()) then return null; end if;
+  return a.telephone;
+end $$;
+
+grant execute on function public.pass_actif(uuid) to authenticated;
+grant execute on function public.pass_requis() to anon, authenticated;
+grant execute on function public.etat_pass() to anon, authenticated;
+grant execute on function public.contact_annonce(uuid) to anon, authenticated;
+
+-- Demande de visite : Pass actif exigé quand le Pass est obligatoire.
+drop policy if exists "demandes: envoyer" on public.demandes;
+create policy "demandes: envoyer" on public.demandes
+  for insert to authenticated
+  with check (
+    locataire = auth.uid()
+    and exists (select 1 from public.annonces a
+                where a.id = annonce_id and a.status = 'verifiee' and a.proprietaire <> auth.uid())
+    and (not public.pass_requis() or public.pass_actif(auth.uid()))
+  );
+
+-- Lecture des annonces colonne par colonne : tout sauf le téléphone.
+revoke select on public.annonces from anon, authenticated;
+grant select (id, proprietaire, titre, type, ville, quartier, loyer, caution_mois, avance_mois,
+              pieces, description, photos, disponible, status, motif_refus, created_at,
+              note_moyenne, nb_avis, campus, distance_campus, compteur_individuel, frais_agence)
+  on public.annonces to anon, authenticated;

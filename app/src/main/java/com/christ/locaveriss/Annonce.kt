@@ -22,6 +22,13 @@ data class Annonce(
     val proprietaire: String,
     val noteMoyenne: Double,
     val nbAvis: Int,
+    /** Campus ou école proche ("" si aucun). */
+    val campus: String,
+    /** Distance du campus en minutes à pied (0 = non précisée). */
+    val distanceCampus: Int,
+    /** Compteur CIE/SODECI individuel. */
+    val compteurIndividuel: Boolean,
+    val fraisAgence: Int,
     /** JSON d'origine, pour passer l'annonce d'un écran à l'autre. */
     val raw: String
 ) {
@@ -33,6 +40,17 @@ data class Annonce(
     fun noteTexte(): String =
         if (nbAvis <= 0) "Nouveau"
         else String.format(Locale.FRANCE, "★ %.1f (%d)", noteMoyenne, nbAvis)
+
+    /** « 10 min à pied · INP-HB (Yamoussoukro) », ou "" si aucun campus. */
+    fun campusTexte(): String = when {
+        campus.isBlank() -> ""
+        distanceCampus > 0 -> "$distanceCampus min à pied · $campus"
+        else -> "Près de : $campus"
+    }
+
+    fun fraisAgenceTexte(): String =
+        if (fraisAgence <= 0) "Frais d'agence : 0 FCFA"
+        else String.format(Locale.FRANCE, "Frais d'agence : %,d FCFA", fraisAgence)
 
     fun lieu(): String = listOf(quartier, ville).filter { it.isNotBlank() }.joinToString(", ")
 
@@ -47,8 +65,21 @@ data class Annonce(
 
     companion object {
         val TYPES = listOf(
-            "Studio", "Chambre", "Appartement", "Villa", "Magasin", "Bureau", "Terrain"
+            "Studio", "Chambre", "Colocation", "Appartement", "Villa", "Magasin", "Bureau", "Terrain"
         )
+
+        /** Grands pôles universitaires ciblés au lancement. */
+        val CAMPUS = listOf(
+            "INP-HB (Yamoussoukro)",
+            "Université Félix Houphouët-Boigny (Cocody)",
+            "Université Nangui Abrogoua (Abobo-Adjamé)",
+            "Université Alassane Ouattara (Bouaké)",
+            "Université Jean Lorougnon Guédé (Daloa)",
+            "Autre école / université"
+        )
+
+        /** Loi n° 2019-576 : 2 mois de caution et 2 mois d'avance au maximum. */
+        const val MAX_MOIS_LEGAL = 2
 
         private fun JSONObject.str(key: String): String =
             if (isNull(key)) "" else optString(key, "")
@@ -81,6 +112,10 @@ data class Annonce(
                 proprietaire = o.str("proprietaire"),
                 noteMoyenne = if (o.isNull("note_moyenne")) 0.0 else o.optDouble("note_moyenne", 0.0),
                 nbAvis = o.optInt("nb_avis", 0),
+                campus = o.str("campus"),
+                distanceCampus = o.optInt("distance_campus", 0),
+                compteurIndividuel = o.optBoolean("compteur_individuel", false),
+                fraisAgence = o.optInt("frais_agence", 0),
                 raw = o.toString()
             )
         }

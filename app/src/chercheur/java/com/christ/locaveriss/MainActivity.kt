@@ -6,6 +6,7 @@ import android.text.InputType
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.widget.ArrayAdapter
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -36,8 +37,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var boutonsTri: List<Pair<TextView, String>>
 
     private var tri = Api.TRI_RECENTS
-    private var type: String? = null
-    private var loyerMax: Int? = null
+    private var filtres = Filtres()
     private var favorisSeuls = false
 
     /** Numéro de la dernière recherche lancée : une réponse plus ancienne est ignorée. */
@@ -126,7 +126,7 @@ class MainActivity : AppCompatActivity() {
         filterBtn.visibility = recherche
 
         // Le bouton des filtres passe au noir quand un filtre est actif.
-        val actif = type != null || loyerMax != null
+        val actif = filtres.actifs
         filterBtn.setBackgroundResource(if (actif) R.drawable.bg_circle_ink else R.drawable.bg_circle_grey)
         filterBtn.setColorFilter(getColor(if (actif) R.color.white else R.color.ink))
     }
@@ -138,34 +138,53 @@ class MainActivity : AppCompatActivity() {
         boite.orientation = LinearLayout.VERTICAL
         boite.setPadding(marge, (8 * d).toInt(), marge, 0)
 
-        val spinner = Spinner(this)
-        spinner.adapter = ArrayAdapter(
-            this, android.R.layout.simple_spinner_dropdown_item,
-            listOf("Tous les types") + Annonce.TYPES
+        fun liste(choix: List<String>, choisi: Int): Spinner {
+            val sp = Spinner(this)
+            sp.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, choix)
+            sp.setSelection(choisi.coerceIn(0, choix.size - 1))
+            boite.addView(sp, LinearLayout.LayoutParams.MATCH_PARENT, (52 * d).toInt())
+            return sp
+        }
+
+        val f = filtres
+        val spinner = liste(listOf("Tous les types") + Annonce.TYPES, Annonce.TYPES.indexOf(f.type) + 1)
+        val campusSp = liste(listOf("Tous les campus / écoles") + Annonce.CAMPUS, Annonce.CAMPUS.indexOf(f.campus) + 1)
+        val distanceSp = liste(
+            listOf("Toute distance") + DISTANCES.map { "$it min à pied maximum" },
+            DISTANCES.indexOf(f.distanceMax) + 1
         )
-        spinner.setSelection(Annonce.TYPES.indexOf(type) + 1)
-        boite.addView(spinner, LinearLayout.LayoutParams.MATCH_PARENT, (52 * d).toInt())
 
         val max = EditText(this)
         max.hint = "Loyer maximum (FCFA)"
         max.inputType = InputType.TYPE_CLASS_NUMBER
-        max.setText(loyerMax?.toString() ?: "")
+        max.setText(f.loyerMax?.toString() ?: "")
         boite.addView(max, LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+
+        val compteur = CheckBox(this)
+        compteur.text = "Compteur CIE/SODECI individuel"
+        compteur.isChecked = f.compteurIndividuel
+        boite.addView(compteur)
 
         AlertDialog.Builder(this)
             .setTitle("Filtrer les annonces")
             .setView(boite)
             .setNeutralButton("Tout effacer") { _, _ ->
-                type = null
-                loyerMax = null
+                filtres = Filtres()
                 afficherEtat()
                 load()
             }
             .setNegativeButton("Annuler", null)
             .setPositiveButton("Appliquer") { _, _ ->
                 val pos = spinner.selectedItemPosition
-                type = if (pos <= 0) null else Annonce.TYPES[pos - 1]
-                loyerMax = max.text.toString().take(9).toIntOrNull()?.takeIf { it > 0 }
+                val posCampus = campusSp.selectedItemPosition
+                val posDistance = distanceSp.selectedItemPosition
+                filtres = Filtres(
+                    type = if (pos <= 0) null else Annonce.TYPES[pos - 1],
+                    loyerMax = max.text.toString().take(9).toIntOrNull()?.takeIf { it > 0 },
+                    campus = if (posCampus <= 0) null else Annonce.CAMPUS[posCampus - 1],
+                    distanceMax = if (posDistance <= 0) null else DISTANCES[posDistance - 1],
+                    compteurIndividuel = compteur.isChecked
+                )
                 afficherEtat()
                 load()
             }
@@ -178,8 +197,7 @@ class MainActivity : AppCompatActivity() {
         val favoris = favorisSeuls
         val ids = Favoris.tous()
         val triChoisi = tri
-        val typeChoisi = type
-        val maxChoisi = loyerMax
+        val filtresChoisis = filtres
 
         progress.visibility = View.VISIBLE
         emptyText.visibility = View.GONE
@@ -188,7 +206,7 @@ class MainActivity : AppCompatActivity() {
             val result = withContext(Dispatchers.IO) {
                 try {
                     if (favoris) Api.listParIds(ids)
-                    else Api.listPublic(q, typeChoisi, maxChoisi, triChoisi)
+                    else Api.listPublic(q, filtresChoisis, triChoisi)
                 } catch (e: Exception) {
                     error = e.message ?: "Erreur inconnue."
                     emptyList()
@@ -207,5 +225,10 @@ class MainActivity : AppCompatActivity() {
                 emptyText.visibility = View.VISIBLE
             }
         }
+    }
+
+    companion object {
+        /** Choix de distance maximale du campus, en minutes à pied. */
+        private val DISTANCES = listOf(5, 10, 15, 20, 30)
     }
 }

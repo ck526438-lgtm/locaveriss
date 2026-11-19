@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.ProgressBar
 import android.widget.Spinner
@@ -47,6 +48,12 @@ class EditActivity : AppCompatActivity() {
     private lateinit var avanceInput: EditText
     private lateinit var piecesInput: EditText
     private lateinit var telInput: EditText
+    private lateinit var fraisInput: EditText
+    private lateinit var campusSpinner: Spinner
+    private lateinit var distanceInput: EditText
+    private lateinit var compteurCheck: CheckBox
+    private lateinit var cniEtat: TextView
+    private lateinit var proprieteEtat: TextView
     private lateinit var descInput: EditText
     private lateinit var photoLabel: TextView
     private lateinit var errorText: TextView
@@ -54,6 +61,21 @@ class EditActivity : AppCompatActivity() {
     private lateinit var saveBtn: Button
     private lateinit var dispoBtn: Button
     private lateinit var deleteBtn: Button
+
+    /** Justificatifs déjà envoyés pour cette annonce ("cni", "propriete"). */
+    private val justifsEnLigne = HashSet<String>()
+
+    /** Justificatifs choisis sur le téléphone, pas encore envoyés : type -> image. */
+    private val justifsLocaux = HashMap<String, Uri>()
+    private var justifEnCours = "cni"
+
+    private val justifPicker =
+        registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+            if (uri != null) {
+                justifsLocaux[justifEnCours] = uri
+                afficherJustifs()
+            }
+        }
 
     private val picker =
         registerForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
@@ -77,6 +99,12 @@ class EditActivity : AppCompatActivity() {
         avanceInput = findViewById(R.id.avanceInput)
         piecesInput = findViewById(R.id.piecesInput)
         telInput = findViewById(R.id.telInput)
+        fraisInput = findViewById(R.id.fraisInput)
+        campusSpinner = findViewById(R.id.campusSpinner)
+        distanceInput = findViewById(R.id.distanceInput)
+        compteurCheck = findViewById(R.id.compteurCheck)
+        cniEtat = findViewById(R.id.cniEtat)
+        proprieteEtat = findViewById(R.id.proprieteEtat)
         descInput = findViewById(R.id.descInput)
         photoLabel = findViewById(R.id.photoLabel)
         errorText = findViewById(R.id.errorText)
@@ -87,6 +115,18 @@ class EditActivity : AppCompatActivity() {
 
         typeSpinner.adapter =
             ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, Annonce.TYPES)
+        campusSpinner.adapter = ArrayAdapter(
+            this, android.R.layout.simple_spinner_dropdown_item,
+            listOf("Aucun campus à proximité") + Annonce.CAMPUS
+        )
+        findViewById<Button>(R.id.cniBtn).setOnClickListener {
+            justifEnCours = "cni"
+            justifPicker.launch("image/*")
+        }
+        findViewById<Button>(R.id.proprieteBtn).setOnClickListener {
+            justifEnCours = "propriete"
+            justifPicker.launch("image/*")
+        }
 
         photoAdapter = PhotoAdapter(photos, 110, 90) { pos ->
             if (pos in photos.indices) {
@@ -109,6 +149,40 @@ class EditActivity : AppCompatActivity() {
         }
         saveBtn.setOnClickListener { save() }
         refreshPhotos()
+        afficherJustifs()
+    }
+
+    private fun afficherJustifs() {
+        fun etat(type: String): String = when {
+            justifsLocaux.containsKey(type) -> "✔ choisie (envoyée à l'enregistrement)"
+            justifsEnLigne.contains(type) -> "✔ envoyée"
+            else -> "à ajouter"
+        }
+        cniEtat.text = "Pièce d'identité (CNI) : " + etat("cni")
+        proprieteEtat.text = "Preuve de propriété : " + etat("propriete")
+    }
+
+    /** Numéro et justificatifs ne sont plus dans la liste des annonces : on les charge à part. */
+    private fun chargerPrive(id: String) {
+        lifecycleScope.launch {
+            val tel = withContext(Dispatchers.IO) {
+                try {
+                    Api.contact(id)
+                } catch (e: Exception) {
+                    null
+                }
+            }
+            if (tel != null && telInput.text.isNullOrBlank()) telInput.setText(tel)
+            val justifs = withContext(Dispatchers.IO) {
+                try {
+                    Api.justificatifs(id)
+                } catch (e: Exception) {
+                    emptyList()
+                }
+            }
+            justifsEnLigne.addAll(justifs.map { it.type })
+            afficherJustifs()
+        }
     }
 
     private fun fill(a: Annonce) {
@@ -123,6 +197,11 @@ class EditActivity : AppCompatActivity() {
         avanceInput.setText(a.avanceMois.toString())
         piecesInput.setText(a.pieces.toString())
         telInput.setText(a.telephone)
+        fraisInput.setText(a.fraisAgence.toString())
+        campusSpinner.setSelection(Annonce.CAMPUS.indexOf(a.campus) + 1)
+        if (a.distanceCampus > 0) distanceInput.setText(a.distanceCampus.toString())
+        compteurCheck.isChecked = a.compteurIndividuel
+        chargerPrive(a.id)
         descInput.setText(a.description)
         photos.addAll(a.photos)
 
@@ -204,13 +283,24 @@ class EditActivity : AppCompatActivity() {
         val quartier = quartierInput.text.toString().trim()
         val loyer = loyerInput.text.toString().toIntOrNull() ?: 0
         val tel = telInput.text.toString().trim()
+        val caution = cautionInput.text.toString().toIntOrNull() ?: 0
+        val avance = avanceInput.text.toString().toIntOrNull() ?: 0
+        val posCampus = campusSpinner.selectedItemPosition
+        val campus = if (posCampus <= 0) "" else Annonce.CAMPUS[posCampus - 1]
+        val manque = listOf("cni", "propriete").filter { it !in justifsEnLigne && it !in justifsLocaux }
 
         when {
             titre.length < 5 -> return showError("Donne un titre clair à l'annonce.")
             ville.isEmpty() || quartier.isEmpty() -> return showError("Indique la ville et le quartier.")
             loyer <= 0 -> return showError("Indique le loyer mensuel en FCFA.")
             tel.filter { it.isDigit() }.length < 8 -> return showError("Indique un numéro de téléphone valide.")
+            caution > Annonce.MAX_MOIS_LEGAL || avance > Annonce.MAX_MOIS_LEGAL ->
+                return showError("La loi limite la caution à 2 mois et l'avance à 2 mois.")
             photos.isEmpty() -> return showError("Ajoute au moins une photo du logement.")
+            "cni" in manque -> return showError("Ajoute la photo de ta pièce d'identité (CNI).")
+            "propriete" in manque -> return showError(
+                "Ajoute une preuve de propriété : facture CIE/SODECI à ton nom, titre, attestation villageoise ou mandat signé."
+            )
         }
 
         val champs = JSONObject()
@@ -219,13 +309,18 @@ class EditActivity : AppCompatActivity() {
             .put("ville", ville)
             .put("quartier", quartier)
             .put("loyer", loyer)
-            .put("caution_mois", cautionInput.text.toString().toIntOrNull() ?: 0)
-            .put("avance_mois", avanceInput.text.toString().toIntOrNull() ?: 0)
+            .put("caution_mois", caution)
+            .put("avance_mois", avance)
+            .put("frais_agence", fraisInput.text.toString().toIntOrNull() ?: 0)
+            .put("campus", campus)
+            .put("distance_campus", if (campus.isEmpty()) 0 else distanceInput.text.toString().toIntOrNull() ?: 0)
+            .put("compteur_individuel", compteurCheck.isChecked)
             .put("pieces", piecesInput.text.toString().toIntOrNull() ?: 0)
             .put("telephone", tel)
             .put("description", descInput.text.toString().trim())
         val id = existing?.id
         val current = ArrayList(photos)
+        val nouveauxJustifs = HashMap(justifsLocaux)
 
         lancer("Annonce envoyée. Elle sera visible après vérification.") {
             val urls = JSONArray()
@@ -233,7 +328,10 @@ class EditActivity : AppCompatActivity() {
                 if (p.startsWith("http")) urls.put(p) else urls.put(Api.envoyerPhoto(compress(Uri.parse(p))))
             }
             champs.put("photos", urls)
-            Api.enregistrer(id, champs)
+            // Les justificatifs partent d'abord dans l'espace privé, puis l'annonce est enregistrée.
+            val chemins = nouveauxJustifs.mapValues { (_, uri) -> Api.envoyerJustificatif(compress(uri)) }
+            val annonceId = Api.enregistrer(id, champs)
+            for ((type, chemin) in chemins) Api.ajouterJustificatif(annonceId, type, chemin)
         }
     }
 
