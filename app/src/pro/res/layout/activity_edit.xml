@@ -123,6 +123,51 @@
             </LinearLayout>
         </LinearLayout>
 
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="La loi limite la caution à 2 mois et l'avance à 2 mois."
+            android:textColor="@color/text_dim"
+            android:textSize="12sp" />
+
+        <TextView style="@style/Label" android:text="Frais d'agence (FCFA, 0 si aucun)" />
+        <EditText
+            android:id="@+id/fraisInput"
+            style="@style/Field"
+            android:hint="0"
+            android:importantForAutofill="no"
+            android:inputType="number"
+            android:maxLength="9" />
+
+        <TextView
+            style="@style/Section"
+            android:text="Pour les étudiants" />
+
+        <TextView style="@style/Label" android:text="Campus ou école à proximité" />
+        <Spinner
+            android:id="@+id/campusSpinner"
+            android:layout_width="match_parent"
+            android:layout_height="52dp" />
+
+        <TextView style="@style/Label" android:text="Distance du campus (minutes à pied)" />
+        <EditText
+            android:id="@+id/distanceInput"
+            style="@style/Field"
+            android:hint="Ex. 10"
+            android:importantForAutofill="no"
+            android:inputType="number"
+            android:maxLength="3" />
+
+        <CheckBox
+            android:id="@+id/compteurCheck"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="Compteur CIE/SODECI individuel"
+            android:textColor="@color/text"
+            android:textSize="15sp" />
+
         <TextView style="@style/Label" android:text="Téléphone / WhatsApp à contacter" />
         <EditText
             android:id="@+id/telInput"
@@ -161,6 +206,45 @@
             android:layout_height="52dp"
             android:layout_marginTop="6dp"
             android:text="Ajouter des photos" />
+
+        <TextView
+            style="@style/Section"
+            android:text="Justificatifs" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:lineSpacingExtra="2dp"
+            android:text="Obligatoires pour obtenir le badge VÉRIFIÉ. Ils sont vus uniquement par l'équipe Locavériss, jamais par les chercheurs."
+            android:textColor="@color/text_dim"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/cniEtat"
+            style="@style/Label"
+            android:text="Pièce d'identité (CNI) : à ajouter" />
+
+        <Button
+            android:id="@+id/cniBtn"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:layout_marginTop="6dp"
+            android:text="Photo de la pièce d'identité" />
+
+        <TextView
+            android:id="@+id/proprieteEtat"
+            style="@style/Label"
+            android:text="Preuve de propriété : à ajouter" />
+
+        <Button
+            android:id="@+id/proprieteBtn"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:layout_marginTop="6dp"
+            android:text="Facture CIE/SODECI, titre, attestation ou mandat" />
 
         <TextView
             android:id="@+id/errorText"

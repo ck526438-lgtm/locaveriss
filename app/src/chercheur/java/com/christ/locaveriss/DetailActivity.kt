@@ -1,6 +1,7 @@
 package com.christ.locaveriss
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.text.InputType
 import android.view.Gravity
@@ -34,6 +35,9 @@ class DetailActivity : AppCompatActivity() {
     private lateinit var avisBtn: Button
 
     private var avis: List<Avis> = emptyList()
+
+    /** Numéro du propriétaire, une fois débloqué. */
+    private var telephone: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -72,6 +76,14 @@ class DetailActivity : AppCompatActivity() {
         }
         findViewById<TextView>(R.id.chipCaution).text = "Caution : ${annonce.cautionMois} mois"
         findViewById<TextView>(R.id.chipAvance).text = "Avance : ${annonce.avanceMois} mois"
+        findViewById<TextView>(R.id.chipFrais).text = annonce.fraisAgenceTexte()
+        val campus = findViewById<TextView>(R.id.chipCampus)
+        val compteur = findViewById<TextView>(R.id.chipCompteur)
+        if (annonce.campus.isBlank()) campus.visibility = View.GONE else campus.text = annonce.campusTexte()
+        if (!annonce.compteurIndividuel) compteur.visibility = View.GONE
+        if (annonce.campus.isBlank() && !annonce.compteurIndividuel) {
+            findViewById<View>(R.id.etudiants).visibility = View.GONE
+        }
 
         findViewById<View>(R.id.backBtn).setOnClickListener { finish() }
         marquerFavori(Favoris.contient(annonce.id))
@@ -81,15 +93,19 @@ class DetailActivity : AppCompatActivity() {
             Ui.toast(this, if (enregistre) "Ajouté à tes favoris." else "Retiré de tes favoris.")
         }
 
-        findViewById<Button>(R.id.callBtn).setOnClickListener { Ui.appeler(this, annonce.telephone) }
+        findViewById<Button>(R.id.callBtn).setOnClickListener {
+            avecContact { tel -> Ui.appeler(this, tel) }
+        }
         findViewById<Button>(R.id.whatsappBtn).setOnClickListener {
-            Ui.whatsapp(
-                this, annonce.telephone,
-                "Bonjour, je suis intéressé(e) par votre annonce sur Locavériss : ${annonce.titre}"
-            )
+            avecContact { tel ->
+                Ui.whatsapp(
+                    this, tel,
+                    "Bonjour, je suis intéressé(e) par votre annonce sur Locavériss : ${annonce.titre}"
+                )
+            }
         }
         findViewById<Button>(R.id.demandeBtn).setOnClickListener {
-            if (connecte("Connecte-toi pour envoyer ta demande au propriétaire.")) demander()
+            if (connecte("Connecte-toi pour envoyer ta demande au propriétaire.")) avecPass { demander() }
         }
         avisBtn.setOnClickListener {
             if (connecte("Connecte-toi pour donner ton avis.")) demanderAvis()
@@ -104,6 +120,126 @@ class DetailActivity : AppCompatActivity() {
         super.onResume()
         // Au retour de l'écran de connexion, « Donner » devient « Modifier » si un avis existe déjà.
         if (::avisBtn.isInitialized) afficherAvis()
+        // Retour de la page de paiement : on vérifie si le Pass est activé.
+        if (Api.loggedIn && Api.passEnAttente != null) verifierPaiement()
+    }
+
+    // ---------- Pass Réservation ----------
+
+    /** Récupère le numéro du propriétaire ; propose le Pass s'il est exigé. */
+    private fun avecContact(action: (String) -> Unit) {
+        telephone?.let {
+            action(it)
+            return
+        }
+        lifecycleScope.launch {
+            var erreur: String? = null
+            val tel = withContext(Dispatchers.IO) {
+                try {
+                    Api.contact(annonce.id)
+                } catch (e: Exception) {
+                    erreur = e.message ?: "Erreur inconnue."
+                    null
+                }
+            }
+            when {
+                erreur != null -> Ui.toast(this@DetailActivity, erreur!!)
+                tel != null -> {
+                    telephone = tel
+                    action(tel)
+                }
+                else -> proposerPass()
+            }
+        }
+    }
+
+    /** Lance l'action si le Pass n'est pas exigé ou s'il est actif ; sinon propose le Pass. */
+    private fun avecPass(action: () -> Unit) {
+        lifecycleScope.launch {
+            var erreur: String? = null
+            val etat = withContext(Dispatchers.IO) {
+                try {
+                    Api.etatPass()
+                } catch (e: Exception) {
+                    erreur = e.message ?: "Erreur inconnue."
+                    null
+                }
+            }
+            when {
+                etat == null -> Ui.toast(this@DetailActivity, erreur ?: "Erreur inconnue.")
+                !etat.obligatoire || etat.actif -> action()
+                else -> montrerPass(etat)
+            }
+        }
+    }
+
+    private fun proposerPass() {
+        lifecycleScope.launch {
+            val etat = withContext(Dispatchers.IO) {
+                try {
+                    Api.etatPass()
+                } catch (e: Exception) {
+                    null
+                }
+            }
+            montrerPass(etat ?: EtatPass(true, 1500, 30, null))
+        }
+    }
+
+    private fun montrerPass(etat: EtatPass) {
+        val prix = String.format(Locale.FRANCE, "%,d FCFA", etat.prix)
+        AlertDialog.Builder(this)
+            .setTitle("Pass Réservation · $prix")
+            .setMessage(
+                "Pour ${etat.duree} jours, le Pass débloque le numéro des propriétaires " +
+                    "(appel et WhatsApp) et les demandes de visite sur toutes les annonces vérifiées.\n\n" +
+                    "Aucun frais de visite, aucun démarcheur.\n" +
+                    "Paiement : Wave, Orange Money, MTN MoMo ou Moov Money."
+            )
+            .setNegativeButton("Plus tard", null)
+            .setPositiveButton("Payer $prix") { _, _ ->
+                if (connecte("Connecte-toi pour acheter le Pass.")) payerPass()
+            }
+            .show()
+    }
+
+    private fun payerPass() {
+        lifecycleScope.launch {
+            var erreur: String? = null
+            val lien = withContext(Dispatchers.IO) {
+                try {
+                    Api.initierPass()
+                } catch (e: Exception) {
+                    erreur = e.message ?: "Erreur inconnue."
+                    null
+                }
+            }
+            if (lien.isNullOrBlank()) {
+                Ui.toast(this@DetailActivity, erreur ?: "Paiement indisponible pour le moment.")
+                return@launch
+            }
+            try {
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(lien)))
+            } catch (e: Exception) {
+                Ui.toast(this@DetailActivity, "Aucun navigateur pour ouvrir le paiement.")
+            }
+        }
+    }
+
+    private fun verifierPaiement() {
+        lifecycleScope.launch {
+            val fin = withContext(Dispatchers.IO) {
+                try {
+                    Api.verifierPass()
+                } catch (e: Exception) {
+                    null
+                }
+            }
+            if (fin != null) {
+                telephone = null
+                Ui.toast(this@DetailActivity, "Pass activé jusqu'au ${Ui.date(fin)}. Tu peux contacter le propriétaire.")
+            }
+        }
     }
 
     private fun montrerPhotos() {

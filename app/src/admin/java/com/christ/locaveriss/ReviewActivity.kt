@@ -7,6 +7,7 @@ import android.text.InputType
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
+import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
@@ -28,6 +29,7 @@ class ReviewActivity : AppCompatActivity() {
     private lateinit var errorText: TextView
     private lateinit var progress: ProgressBar
     private lateinit var buttons: List<Button>
+    private var telephone = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -74,12 +76,7 @@ class ReviewActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.prix).text = annonce.prix()
         findViewById<TextView>(R.id.lieu).text =
             listOf(annonce.type, annonce.lieu()).filter { it.isNotBlank() }.joinToString(" · ")
-        findViewById<TextView>(R.id.conditions).text = listOf(
-            "Pièces : ${annonce.pieces}",
-            "Caution : ${annonce.cautionMois} mois",
-            "Avance : ${annonce.avanceMois} mois",
-            "Téléphone de l'annonce : ${annonce.telephone}"
-        ).joinToString("\n")
+        afficherConditions()
         findViewById<TextView>(R.id.description).text =
             annonce.description.ifBlank { "(Pas de description)" }
 
@@ -97,7 +94,7 @@ class ReviewActivity : AppCompatActivity() {
                 startActivity(
                     Intent(
                         Intent.ACTION_DIAL,
-                        Uri.parse("tel:" + annonce.telephone.filter { it.isDigit() || it == '+' })
+                        Uri.parse("tel:" + telephone.filter { it.isDigit() || it == '+' })
                     )
                 )
             } catch (e: Exception) {
@@ -127,6 +124,92 @@ class ReviewActivity : AppCompatActivity() {
         }
 
         loadOwner()
+        chargerPrive()
+    }
+
+    private fun afficherConditions() {
+        val lignes = arrayListOf(
+            "Pièces : ${annonce.pieces}",
+            "Caution : ${annonce.cautionMois} mois",
+            "Avance : ${annonce.avanceMois} mois",
+            annonce.fraisAgenceTexte(),
+            "Téléphone de l'annonce : " + telephone.ifBlank { "chargement…" }
+        )
+        if (annonce.campus.isNotBlank()) lignes.add("Campus : " + annonce.campusTexte())
+        if (annonce.compteurIndividuel) lignes.add("Compteur CIE/SODECI individuel")
+        if (annonce.cautionMois > Annonce.MAX_MOIS_LEGAL || annonce.avanceMois > Annonce.MAX_MOIS_LEGAL) {
+            lignes.add("⚠ Caution ou avance au-delà de la limite légale de 2 mois")
+        }
+        findViewById<TextView>(R.id.conditions).text = lignes.joinToString("\n")
+    }
+
+    /** Numéro de l'annonce et justificatifs (espace privé), lisibles par l'administrateur. */
+    private fun chargerPrive() {
+        val etat = findViewById<TextView>(R.id.justifsEtat)
+        val liste = findViewById<LinearLayout>(R.id.justifsListe)
+        lifecycleScope.launch {
+            val tel = withContext(Dispatchers.IO) {
+                try {
+                    Api.contact(annonce.id)
+                } catch (e: Exception) {
+                    null
+                }
+            }
+            telephone = tel.orEmpty()
+            afficherConditions()
+
+            var erreur: String? = null
+            val justifs = withContext(Dispatchers.IO) {
+                try {
+                    Api.justificatifs(annonce.id)
+                } catch (e: Exception) {
+                    erreur = e.message
+                    emptyList()
+                }
+            }
+            val types = justifs.map { it.type }.toSet()
+            val complet = "cni" in types && "propriete" in types
+            etat.text = when {
+                erreur != null -> "Justificatifs : $erreur"
+                complet -> "✔ Justificatifs complets — compare le nom de la CNI avec celui de la preuve"
+                else -> "⚠ Justificatifs manquants : la validation est bloquée.\n" +
+                    (if ("cni" !in types) "• Pièce d'identité\n" else "") +
+                    (if ("propriete" !in types) "• Preuve de propriété" else "")
+            }
+            etat.setTextColor(ContextCompat.getColor(this@ReviewActivity, if (complet) R.color.green_dark else R.color.red))
+            liste.removeAllViews()
+            for (j in justifs) {
+                val b = com.google.android.material.button.MaterialButton(
+                    this@ReviewActivity, null, com.google.android.material.R.attr.materialButtonOutlinedStyle
+                )
+                b.text = if (j.type == "cni") "Voir la pièce d'identité" else "Voir la preuve de propriété"
+                b.setOnClickListener { ouvrirJustificatif(j.chemin) }
+                liste.addView(b, LinearLayout.LayoutParams.MATCH_PARENT, (54 * resources.displayMetrics.density).toInt())
+            }
+        }
+    }
+
+    private fun ouvrirJustificatif(chemin: String) {
+        lifecycleScope.launch {
+            var erreur: String? = null
+            val lien = withContext(Dispatchers.IO) {
+                try {
+                    Api.lienJustificatif(chemin)
+                } catch (e: Exception) {
+                    erreur = e.message
+                    null
+                }
+            }
+            if (lien == null) {
+                Toast.makeText(this@ReviewActivity, erreur ?: "Lien indisponible.", Toast.LENGTH_LONG).show()
+                return@launch
+            }
+            try {
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(lien)))
+            } catch (e: Exception) {
+                Toast.makeText(this@ReviewActivity, "Aucun navigateur.", Toast.LENGTH_LONG).show()
+            }
+        }
     }
 
     private fun loadOwner() {

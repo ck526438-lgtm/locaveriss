@@ -97,6 +97,22 @@
                 android:textSize="15sp" />
 
             <TextView
+                android:id="@+id/justifsEtat"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:fontFamily="@font/outfit_semibold"
+                android:text="Justificatifs : chargement…"
+                android:textColor="@color/ink"
+                android:textSize="15sp" />
+
+            <LinearLayout
+                android:id="@+id/justifsListe"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+
+            <TextView
                 android:id="@+id/errorText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
