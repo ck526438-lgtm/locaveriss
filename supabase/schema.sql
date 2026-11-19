@@ -638,6 +638,7 @@ begin
   return a.telephone;
 end $$;
 
+revoke execute on function public.pass_actif(uuid) from public, anon;
 grant execute on function public.pass_actif(uuid) to authenticated;
 grant execute on function public.pass_requis() to anon, authenticated;
 grant execute on function public.etat_pass() to anon, authenticated;
